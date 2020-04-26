@@ -1,4 +1,10 @@
-import React, { createContext, useReducer, useContext, useMemo } from 'react';
+import React, {
+  createContext,
+  useReducer,
+  useContext,
+  useMemo,
+  useEffect,
+} from 'react';
 import {
   toCurrency,
   calculateTotalValue,
@@ -28,7 +34,7 @@ const checkoutCart = (skus, { sku }, quantity = 1) => {
 };
 
 const formatDetailedCart = (currency, cartItems, language) => {
-  return cartItems ? cartItems.reduce((acc, current) => {
+  return cartItems.reduce((acc, current) => {
     const quantity = (acc[current.sku]?.quantity ?? 0) + 1;
     const price = current.price;
     const value = (acc[current.sku]?.value ?? 0) + current.price;
@@ -44,7 +50,7 @@ const formatDetailedCart = (currency, cartItems, language) => {
         value,
       },
     };
-  }, {}) : {};
+  }, {});
 };
 
 const reduceItemByOne = (skuID, cartItems) => {
@@ -94,6 +100,13 @@ function cartReducer(cart, action) {
         ...cart,
         shouldDisplayCart: false,
       };
+
+    case 'stripe changed':
+      return {
+        ...cart,
+        stripe: action.stripe,
+      };
+
     default:
       return cart;
   }
@@ -107,12 +120,22 @@ function cartItemsReducer(cartItems, action) {
       return cartItems.filter((item) => item.sku !== action.sku);
     case 'reduceItemByOne':
       return reduceItemByOne(action.sku, cartItems);
+    case 'clearCart':
+    return []
     default:
       return cartItems;
   }
 }
 
-export const CartContext = createContext([{}, () => {}]);
+export const CartContext = createContext([
+  {
+    lastClicked: '',
+    shouldDisplayCart: false,
+    skus: {},
+    cartItems: [],
+  },
+  () => {},
+]);
 
 /**
  * @param {{
@@ -148,6 +171,10 @@ export const CartProvider = ({
     skus: {},
   });
 
+  useEffect(() => {
+    cartDispatch({ type: 'stripe changed', stripe });
+  }, [stripe]);
+
   // keep cartItems in LocalStorage
   const [cartItems, cartItemsDispatch] = useLocalStorageReducer(
     'cart-items',
@@ -173,7 +200,7 @@ export const CartProvider = ({
   );
 };
 
-export const useStripeCart = () => {
+export const useShoppingCart = () => {
   const [cart, dispatch] = useContext(CartContext);
 
   const {
@@ -200,7 +227,7 @@ export const useStripeCart = () => {
     };
   });
 
-  const cartCount = cartItems ? cartItems.length : 0;
+  const cartCount = cartItems.length;
 
   const addItem = (product) => {
     dispatch({ type: 'addToCart', product });
@@ -223,6 +250,8 @@ export const useStripeCart = () => {
 
   const handleCloseCart = () => dispatch({ type: 'closeCart' });
 
+  const clearCart = () => dispatch({type: 'clearCart'})
+
   const redirectToCheckout = async () => {
     const options = {
       items: checkoutData,
@@ -236,6 +265,10 @@ export const useStripeCart = () => {
       options.shippingAddressCollection = {
         allowedCountries,
       };
+    }
+
+    if (stripe === null) {
+      throw new Error('Stripe is not defined');
     }
 
     const { error } = await stripe.redirectToCheckout(options);
@@ -260,5 +293,6 @@ export const useStripeCart = () => {
     totalPrice,
     removeCartItem,
     reduceItemByOne,
+    clearCart
   };
 };

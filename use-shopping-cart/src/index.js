@@ -11,6 +11,8 @@ import {
   useLocalStorageReducer,
 } from './util';
 
+export { toCurrency };
+
 /**
  * @function checkoutCart
  * @param skus {Object}
@@ -36,7 +38,6 @@ const checkoutCart = (skus, { sku }, quantity = 1) => {
 const formatDetailedCart = (currency, cartItems, language) => {
   return cartItems.reduce((acc, current) => {
     const quantity = (acc[current.sku]?.quantity ?? 0) + 1;
-    const price = current.price;
     const value = (acc[current.sku]?.value ?? 0) + current.price;
     const formattedValue = toCurrency({ value, currency, language });
 
@@ -45,7 +46,6 @@ const formatDetailedCart = (currency, cartItems, language) => {
       [current.sku]: {
         ...current,
         quantity,
-        price,
         formattedValue,
         value,
       },
@@ -121,7 +121,7 @@ function cartItemsReducer(cartItems, action) {
     case 'reduceItemByOne':
       return reduceItemByOne(action.sku, cartItems);
     case 'clearCart':
-    return []
+      return [];
     default:
       return cartItems;
   }
@@ -140,7 +140,7 @@ export const CartContext = createContext([
 /**
  * @param {{
     children: JSX.Element,
-    stripe: any,
+    stripe: stripe.Stripe,
     successUrl: string,
     cancelUrl: string,
     currency: string,
@@ -250,9 +250,9 @@ export const useShoppingCart = () => {
 
   const handleCloseCart = () => dispatch({ type: 'closeCart' });
 
-  const clearCart = () => dispatch({type: 'clearCart'})
+  const clearCart = () => dispatch({ type: 'clearCart' });
 
-  const redirectToCheckout = async () => {
+  const redirectToCheckout = async (sessionId) => {
     const options = {
       items: checkoutData,
       successUrl,
@@ -271,7 +271,9 @@ export const useShoppingCart = () => {
       throw new Error('Stripe is not defined');
     }
 
-    const { error } = await stripe.redirectToCheckout(options);
+    const { error } = await stripe.redirectToCheckout(
+      sessionId ? sessionId : options
+    );
     if (error) {
       return error;
     }
@@ -293,6 +295,6 @@ export const useShoppingCart = () => {
     totalPrice,
     removeCartItem,
     reduceItemByOne,
-    clearCart
+    clearCart,
   };
 };
